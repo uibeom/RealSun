@@ -2,8 +2,26 @@ from tkinter import *
 import tkinter.ttk
 from tkinter import font
 
+#5/23 추가
+import urllib.request
+
+from bs4 import BeautifulSoup
+from urllib.parse import urlencode, quote_plus, unquote
+import xml.etree.ElementTree as etree
+from string import digits
+
+
+import urllib
+import urllib.request
+import http.client
+import time
+
+import requests, xmltodict, json
+
+
 class GUI:
     sibal = "sibal"
+
     def __init__(self):
         self.window = tkinter.Tk()
         self.window.title("안심식당")
@@ -12,13 +30,15 @@ class GUI:
         self.searchValues()
         self.searchDetailValues(['시/군/구'])
         self.searchCategoryValues()
+        self.resultText()
         self.button()
+        self.listName()
         self.searchList()
-        self.resultList()
         self.window.mainloop()
 
     def entry(self):
         self.entry = tkinter.Entry(self.window, width=50, borderwidth=3, bg='light blue')
+        self.entry.insert(0, "음식점 이름을 입력하세요")
         self.entry.place(x=50, y=60)
 
     def searchList(self):
@@ -29,27 +49,41 @@ class GUI:
         self.scrollbar.pack(side="right", fill="y")
 
         self.listbox = tkinter.Listbox(self.frame, selectmode='extended', width= 42, height=25,yscrollcommand = self.scrollbar.set)
-        for line in range(1,1001):
-           self.listbox.insert(line, str(line) + "/1000")
+
         self.listbox.pack(side="left")
 
         self.scrollbar["command"]=self.listbox.yview
-        self.frame.place(x=30, y=250)
+        self.frame.place(x=10, y=255)
 
-    def resultList(self):
-        #///
+
+
+
+
+    def resultText(self):
         self.frame2 = tkinter.Frame(self.window)
 
-        self.scrollbar2=tkinter.Scrollbar(self.frame2)
+        self.scrollbar2 = tkinter.Scrollbar(self.frame2)
         self.scrollbar2.pack(side="right", fill="y")
+        self.text = tkinter.Text(self.frame2, width=40, height=31, yscrollcommand = self.scrollbar2.set)
 
-        self.listbox2 = tkinter.Listbox(self.frame2, selectmode='extended', width= 42, height=25,yscrollcommand = self.scrollbar2.set)
-        for line in range(1,1001):
-           self.listbox2.insert(line, str(line) + "/1000")
-        self.listbox2.pack(side="left")
+        self.text.insert(tkinter.CURRENT, "")
 
-        self.scrollbar2["command"]=self.listbox2.yview
-        self.frame2.place(x=360, y=250)
+        self.text.pack(side="left")
+        self.text.tag_add("강조", "1.0", "1.6")
+        self.text.tag_config("강조", background="yellow")
+        self.text.tag_remove("강조", "1.1", "1.2")
+        self.scrollbar2["command"] = self.text.yview
+        self.frame2.place(x=390, y=255)
+
+    def listName(self):
+        self.label = tkinter.Label(self.window, text="목록", width=10, height=1)
+
+        self.label.place(x=120, y=230)
+
+        self.label2 = tkinter.Label(self.window, text="검색결과", width=10, height=1)
+
+        self.label2.place(x=490, y=230)
+
 
     def selectValues(self, event):
         self.valuesStr = self.combo1.get()
@@ -69,6 +103,7 @@ class GUI:
         self.combo1.place(x = 50, y = 130)
         self.combo1.set(self.valuesStr)
         self.combo1.bind('<<ComboboxSelected>>', self.selectValues)
+
 
     def searchDetailValues(self, detailValues):
         self.detailValuesStr = StringVar()
@@ -124,6 +159,7 @@ class GUI:
         self.combo2.place(x=250, y=130)
         self.combo2.set(self.detailValuesStr)
 
+
     def searchCategoryValues(self):
         self.categoryValuesStr = StringVar()
         self.categoryValuesStr = "업종상세"
@@ -135,17 +171,85 @@ class GUI:
         self.combo3.set(self.categoryValuesStr)
 
 
-
-
-
-
-
-
-    #----------------------
     def search(self):
-        pass
+
+        self.listbox.delete(0,1000)
+        self.text.delete(1.0, "end")
+        url = 'http://211.237.50.150:7080/openapi/ffdc9d56e6e1acc99dc0304efc850b9764f5668bdc618eb00ecc3f52dcfe17c2/xml/Grid_20200713000000000605_1/1/1000'
+
+
+        self.detailValuesStr = self.combo2.get()
+        self.categoryValuesStr = self.combo3.get()
+
+        if(self.valuesStr != '시/도' and self.detailValuesStr == '시/군/구' and self.categoryValuesStr == '업종상세'):
+            parme = '?' + '&RELAX_SI_NM=' + self.valuesStr #+ '&RELAX_SIDO_NM=' + self.detailValuesStr + '&RELAX_GUBUN_DETAIL=' + self.categoryValuesStr
+
+        elif(self.valuesStr != '시/도' and self.detailValuesStr != '시/군/구'and self.categoryValuesStr == '업종상세'):
+            parme = '?' + '&RELAX_SI_NM=' + self.valuesStr + '&RELAX_SIDO_NM=' + self.detailValuesStr
+
+        elif(self.valuesStr != '시/도' and self.detailValuesStr != '시/군/구' and self.categoryValuesStr != '업종상세'):
+            parme = '?' + '&RELAX_SI_NM=' + self.valuesStr + '&RELAX_SIDO_NM=' + self.detailValuesStr + '&RELAX_GUBUN_DETAIL=' + self.categoryValuesStr
+
+        elif(self.valuesStr == '시/도' and self.detailValuesStr == '시/군/구' and self.categoryValuesStr == '업종상세'):
+            parme =""
+
+        url = url + parme
+        content = requests.get(url).content
+        dic = xmltodict.parse(content)
+        jsonString = json.dumps(dic, ensure_ascii=False)
+        jsonObj = json.loads(jsonString)
+
+
+        n = 0
+        self.box2 = []
+
+        for item in jsonObj['Grid_20200713000000000605_1']['row']:
+
+            if item['RELAX_RSTRNT_NM'] == self.entry.get() and self.entry.get() != "음식점 이름을 입력하세요":      #검색어가 있고 같은 이름의 식당이 있을 떄
+                self.listbox.insert(n, item['RELAX_RSTRNT_NM'])
+                if item['RELAX_RSTRNT_TEL'] == None:
+                    self.box2.append("\n\n주소: " + item['RELAX_ADD1'] + "\n\n" + "업종: " + item['RELAX_GUBUN_DETAIL'])
+                else:
+                    self.box2.append("\n\n주소: " + item['RELAX_ADD1'] + "\n\n" + "업종: " + item['RELAX_GUBUN_DETAIL'] + "\n\n" + "전화번호: " + item['RELAX_RSTRNT_TEL'])
+
+
+            elif self.entry.get() == "음식점 이름을 입력하세요":                #검색어가 없을 떄
+                self.listbox.insert(n, item['RELAX_RSTRNT_NM'])
+                if item['RELAX_RSTRNT_TEL'] == None:
+                    self.box2.append("\n\n주소: " + item['RELAX_ADD1'] + "\n\n" + "업종: " + item['RELAX_GUBUN_DETAIL'])
+                else:
+                    self.box2.append("\n\n주소: " + item['RELAX_ADD1'] + "\n\n" + "업종: " + item['RELAX_GUBUN_DETAIL'] + "\n\n" + "전화번호: " + item['RELAX_RSTRNT_TEL'])
+            n += 1
+
+
     def reset(self):
-        pass
+        #필터 리셋
+        self.valuesStr ='시/도'
+        self.combo1.set(self.valuesStr)
+        self.detailValuesStr ='시/군/구'
+        self.combo2.set(self.detailValuesStr)
+        self.categoryValuesStr ='업종상세'
+        self.combo3.set(self.categoryValuesStr)
+
+        #검색창 리셋
+        self.entry.delete(0,"end")
+        self.entry.insert(0,"음식점 이름을 입력하세요")
+        #결과 리셋
+
+
+        self.listbox.delete(0,1000)
+        self.text.delete( 1.0, "end")
+
+
+    def listPrint(self):
+        self.text.delete(1.0, "end")
+        self.selection = self.listbox.curselection()
+        self.index = self.selection[0]
+        int(self.index)
+        self.text.insert(1.0, self.box2[self.index])
+
+
+
     def recommand(self):
         pass
     def mail(self):
@@ -170,5 +274,8 @@ class GUI:
         #지도 버튼
         self.button5 = tkinter.Button(self.window, text = '지도', command = self.map, width=10, height = 1, borderwidth= 5, )
         self.button5.place(x=470,y=190)
+        #결과리스트 출력버튼
+        self.button6 = tkinter.Button(self.window, text='->', command=self.listPrint, width=3, height=1, borderwidth=5, )
+        self.button6.place(x=340, y=420)
 
 GUI()
